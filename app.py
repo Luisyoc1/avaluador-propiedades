@@ -1,5 +1,5 @@
 import streamlit as st
-from API import calcular_oferta
+from api import calcular_oferta
 
 st.title("Evaluador de propiedades")
 
