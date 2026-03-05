@@ -1,30 +1,59 @@
 import streamlit as st
-from api import calcular_oferta
+from api import calcular_oferta, calcular_promedios, valorar_propiedad
 
-st.title("Evaluador de propiedades")
+st.title("Sistema de valuación de propiedades")
 
-st.header("Datos de la oferta comparable")
+st.header("Ofertas comparables")
 
-area_terreno = st.number_input("Área de terreno (m2)", value=0.0)
-area_construccion = st.number_input("Área de construcción (m2)", value=0.0)
-precio_oferta = st.number_input("Precio de oferta", value=0.0)
-precio_m2_construccion = st.number_input("Precio m2 construcción", value=0.0)
+ofertas = []
 
-negociacion = st.slider("Porcentaje de negociación", 0.0, 0.20, 0.10)
+for i in range(3):
 
-if st.button("Calcular valores"):
+    st.subheader(f"Oferta {i+1}")
 
-    resultado = calcular_oferta(
-        area_terreno,
-        area_construccion,
-        precio_oferta,
-        negociacion,
-        precio_m2_construccion
-    )
+    terreno = st.number_input(f"Terreno oferta {i+1}", value=0.0, key=f"t{i}")
+    construccion = st.number_input(f"Construcción oferta {i+1}", value=0.0, key=f"c{i}")
+    precio = st.number_input(f"Precio oferta {i+1}", value=0.0, key=f"p{i}")
+    precio_m2_const = st.number_input(f"Precio m2 construcción oferta {i+1}", value=0.0, key=f"m{i}")
 
-    st.subheader("Resultados")
+    negociacion = st.slider(f"Negociación oferta {i+1}",0.0,0.30,0.10,key=f"n{i}")
 
-    st.write("Valor negociado:", round(resultado["valor_negociado"], 2))
-    st.write("Valor m2 terreno:", round(resultado["valor_m2_terreno"], 2))
-    st.write("Promedio bruto terreno:", round(resultado["valor_bruto_terreno"], 2))
-    st.write("Promedio construcción:", round(resultado["valor_promedio_construccion"], 2))
+    if terreno > 0 and construccion > 0:
+
+        resultado = calcular_oferta(terreno,construccion,precio,precio_m2_const,negociacion)
+        ofertas.append(resultado)
+
+        st.write(resultado)
+
+
+if len(ofertas) == 3:
+
+    st.header("Promedios de mercado")
+
+    prom_terreno, prom_const, prom_neg = calcular_promedios(ofertas)
+
+    st.write("Promedio m2 terreno:", prom_terreno)
+    st.write("Promedio m2 construcción:", prom_const)
+    st.write("Promedio precios negociados:", prom_neg)
+
+    st.header("Propiedad a evaluar")
+
+    terreno_eval = st.number_input("Terreno propiedad evaluada")
+    construccion_eval = st.number_input("Construcción propiedad evaluada")
+    extras = st.number_input("Extras (pérgola, garaje, etc)",value=0.0)
+
+    if st.button("Calcular valor propiedad"):
+
+        vt, vc, total = valorar_propiedad(
+            terreno_eval,
+            construccion_eval,
+            prom_terreno,
+            prom_const,
+            extras
+        )
+
+        st.header("Resultado")
+
+        st.write("Valor terreno:", vt)
+        st.write("Valor construcción:", vc)
+        st.write("Valor total estimado:", total)
