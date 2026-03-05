@@ -9,3 +9,4 @@ precio_m2 = st.number_input("Precio promedio por m2")
 if st.button("Calcular valor estimado"):
     valor = area_construccion * precio_m2
     st.write("Valor estimado de la propiedad:", valor)
+from API import calcular_valor_terreno
