@@ -10,60 +10,56 @@ S_KEY = "3b154c2742a1d46402531eb080ee2d12d5f167e4"
 G_KEY = "AIzaSyDiJ0t5ZOO8f1wODihSrd31lxR69yxnUSs"
 api_ia = InmobiliariaAI(S_KEY, G_KEY)
 
-def f_q(v): return f"Q {v:,.2f}"
+# --- ESTADOS DE SESIÓN ---
+if 'lista_o' not in st.session_state: st.session_state.lista_o = []
+if 'links_descartados' not in st.session_state: st.session_state.links_descartados = []
 
-if 'lista_o' not in st.session_state:
-    st.session_state.lista_o = [{"precio": 0.0, "m2_t": 0.0, "m2_c": 0.0, "link": "Manual"}] * 5
+st.title("🏛️ Valuador Inteligente con Repositorio de Enlaces")
 
-st.title("🏛️ Valuador Inteligente: Filtro de Tipología y Datos")
-
-tab1, tab2 = st.tabs(["🔍 Mercado Filtrado", "🏠 Sujeto"])
+tab1, tab_links, tab2 = st.tabs(["🔍 Mercado Validado", "🔗 Enlaces Descartados (IA)", "🏠 Sujeto"])
 
 with tab1:
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        sector = st.text_input("Ubicación:", "Bosques de San Nicolás")
-    with col2:
-        tipo = st.selectbox("¿Qué buscas?", ["Casa", "Apartamento"])
-    with col3:
-        n_busqueda = st.slider("Cantidad", 3, 5, 3)
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1: sector = st.text_input("Ubicación:", "Bosques de la Fontana")
+    with c2: tipo = st.selectbox("Tipo:", ["Casa", "Apartamento"])
+    with c3: 
+        if st.button("🚀 Escanear Todo"):
+            with st.spinner("Buscando y clasificando..."):
+                buenas, malas = api_ia.buscar_ofertas_full(sector, tipo)
+                st.session_state.lista_o = buenas
+                st.session_state.links_descartados = malas
+                st.rerun()
 
-    if st.button("🚀 Escanear y Descartar ofertas irrelevantes"):
-        with st.spinner(f"Buscando solo {tipo}s con datos completos..."):
-            res_ia = api_ia.buscar_ofertas(sector, tipo, n_busqueda)
-            if res_ia:
-                # Limpiamos la lista anterior para que no se mezclen
-                st.session_state.lista_o = [{"precio": 0.0, "m2_t": 0.0, "m2_c": 0.0, "link": "Manual"}] * 5
-                for i, r in enumerate(res_ia):
-                    st.session_state.lista_o[i] = r
-                st.success(f"Se encontraron {len(res_ia)} ofertas válidas.")
-            else:
-                st.error("No se encontraron ofertas con datos suficientes en esta zona.")
+    # Mostrar las "Buenas" (Máximo 3 para comparar)
+    if st.session_state.lista_o:
+        cols = st.columns(len(st.session_state.lista_o))
+        for i, item in enumerate(st.session_state.lista_o):
+            with cols[i]:
+                st.subheader(f"Oferta Validada #{i+1}")
+                st.caption(f"[Abrir Fuente]({item['link']})")
+                p = st.number_input(f"Precio Q", key=f"pv{i}", value=item['precio'])
+                at = st.number_input(f"M2 Terreno", key=f"atv{i}", value=item['m2_t'])
+                ac = st.number_input(f"M2 Const.", key=f"acv{i}", value=item['m2_c'])
+                st.info(f"Suelo Residual: Q {engine.calcular_residual_oferta(p, at, ac, 3600)['m2_tierra_limpia']:,.2f}")
+    else:
+        st.warning("No hay ofertas automáticas completas. Revisa la pestaña de Enlaces Descartados.")
 
-    cols = st.columns(n_busqueda)
-    res_finales = []
+# --- NUEVA PESTAÑA: EL BASURERO DE LINKS ---
+with tab_links:
+    st.header("Enlaces con información incompleta")
+    st.write("La IA no pudo extraer m2 o precios exactos de estos links. Revísalos manualmente:")
     
-    for i in range(n_busqueda):
-        with cols[i]:
-            item = st.session_state.lista_o[i]
-            st.subheader(f"Oferta {i+1}")
-            if item['link'] != "Manual": st.caption(f"[Ver enlace]({item['link']})")
-            
-            p = st.number_input("Precio Q", key=f"p{i}", value=float(item['precio']))
-            at = st.number_input("M2 Terreno", key=f"at{i}", value=float(item['m2_t']))
-            ac = st.number_input("M2 Const.", key=f"ac{i}", value=float(item['m2_c']))
-            cc = st.number_input("Expertís", key=f"cc{i}", value=3600.0)
-            
-            # Solo calculamos si hay datos
-            if p > 0 and at > 0:
-                res = engine.calcular_residual_oferta(p, at, ac, cc)
-                res_finales.append(res)
-                st.info(f"Suelo: {f_q(res['m2_tierra_limpia'])}")
-            else:
-                st.warning("Datos incompletos")
+    if st.session_state.links_descartados:
+        for i, link_item in enumerate(st.session_state.links_descartados):
+            col_l, col_chk = st.columns([4, 1])
+            with col_l:
+                # El link cambia de estilo si se marca el checkbox
+                st.markdown(f"**{i+1}.** [{link_item['titulo']}]({link_item['link']})")
+            with col_chk:
+                st.checkbox("Revisado", key=f"chk_{i}")
+    else:
+        st.info("No hay enlaces descartados aún.")
 
-    if res_finales:
-        st.divider()
-        df = pd.DataFrame(res_finales)
-        st.write("### Resumen de Comparativos Validados")
-        st.table(df.style.format("{:,.2f}"))
+with tab2:
+    st.header("Valuación del Sujeto")
+    # (Aquí va el código de la pestaña sujeto que ya teníamos)
