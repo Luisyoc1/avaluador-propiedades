@@ -7,6 +7,14 @@ engine = ValuadorEngine()
 
 st.title("🏛️ Sistema de Valuación Homogenizada e Indicadores")
 
+# --- 1. CÁLCULOS INICIALES (Para evitar errores de variables no definidas) ---
+# Valores por defecto para que la gráfica no truene al iniciar
+prom_tierra_zona = 0.0
+total_fisico = 0.0
+v_ind = 0.0
+v_av_ind = 0.0
+val_renta = 0.0
+
 # Definición de pestañas
 tab_mercado, tab_sujeto, tab_indicadores = st.tabs([
     "🔍 Estudio de Mercado", 
@@ -16,7 +24,7 @@ tab_mercado, tab_sujeto, tab_indicadores = st.tabs([
 
 # --- PESTAÑA 1: ESTUDIO DE MERCADO ---
 with tab_mercado:
-    st.info("💡 Ingresa 3 ofertas de mercado para obtener el promedio residual de la tierra en la zona.")
+    st.info("💡 Ingresa 3 ofertas de mercado para obtener el promedio residual.")
     col_t1, col_t2, col_t3 = st.columns(3)
     testigos_data = []
 
@@ -46,16 +54,13 @@ with tab_sujeto:
     c1, c2 = st.columns(2)
     with c1:
         m2_sujeto = st.number_input("Metros Cuadrados de Terreno", value=156.44)
-        v_t_banco = st.number_input("Valor M2 Terreno (Criterio Banco/Expertís)", value=4900.0)
+        v_t_banco = st.number_input("Valor M2 Terreno (Expertís)", value=4900.0)
     
     st.subheader("Desglose de Construcciones")
-    st.write("Agrega filas para cisternas, pérgolas, garajes o diferentes niveles.")
-    
-    # Tabla dinámica para áreas
     df_const = st.data_editor(pd.DataFrame([
-        {"Tipo": "Nivel 1", "M2": 100.0, "Costo_M2": 3850.0},
+        {"Tipo": "Nivel 1", "M2": 204.20, "Costo_M2": 3850.0},
         {"Tipo": "Pérgola", "M2": 18.5, "Costo_M2": 1800.0}
-    ]), num_rows="dynamic", use_container_width=True)
+    ]), num_rows="dynamic", use_container_width=True, key="editor_const")
     
     val_tierra_total = m2_sujeto * v_t_banco
     val_const_total = (df_const['M2'] * df_const['Costo_M2']).sum()
@@ -65,37 +70,29 @@ with tab_sujeto:
 
 # --- PESTAÑA 3: INDICADORES ---
 with tab_indicadores:
-    st.header("Validación por Indicadores Extra")
-    
+    st.header("Validación por Indicadores")
     col_i1, col_i2 = st.columns(2)
     
     with col_i1:
-        st.subheader("Indexación (Crecimiento 3%)")
-        with st.expander("Calcular Hipoteca u Oferta Antigua"):
-            v_hist = st.number_input("Monto Histórico Q", value=899706.0)
-            a_hist = st.number_input("Año de Origen", value=2017)
-            v_ind = engine.indexar_valor(v_hist, a_hist)
-            st.write(f"Valor Actualizado: **Q {v_ind:,.2f}**")
-            
-        with st.expander("Avalúo Anterior"):
-            v_av_old = st.number_input("Monto Avalúo Q", value=1000000.0)
-            a_av_old = st.number_input("Año Avalúo", value=2018)
-            v_av_ind = engine.indexar_valor(v_av_old, a_av_old)
-            st.write(f"Valor Actualizado: **Q {v_av_ind:,.2f}**")
+        st.subheader("1. Indexación (3%)")
+        v_hist = st.number_input("Monto Hipoteca Original Q", value=899706.0)
+        a_hist = st.number_input("Año Origen", value=2017)
+        v_ind = engine.indexar_valor(v_hist, a_hist)
+        
+        v_av_old = st.number_input("Monto Avalúo Anterior Q", value=1000000.0)
+        a_av_old = st.number_input("Año Avalúo", value=2018)
+        v_av_ind = engine.indexar_valor(v_av_old, a_av_old)
 
-        st.subheader("Rentabilidad (Cap Rate 6%)")
+        st.subheader("2. Rentabilidad (6%)")
         renta = st.number_input("Renta Mensual Estimada Q", value=3500.0)
         val_renta = engine.calcular_rentabilidad(renta)
-        st.write(f"Valor por Rentabilidad: **Q {val_renta:,.2f}**")
 
     with col_i2:
-        st.subheader("Gráfica Comparativa de Métodos")
-        metodos = ["Físico (Expertís)", "Mercado (Promedio)", "Hipoteca Index.", "Rentabilidad"]
-        valores = [total_fisico, (prom_tierra_zona * m2_sujeto + val_const_total), v_ind, val_renta]
+        st.subheader("Resumen de Métodos")
+        # Aquí creamos la variable df_grafica DENTRO de la pestaña para asegurar que exista
+        metodos = ["Físico (Sujeto)", "Mercado (Zona)", "Hipoteca Ind.", "Avalúo Ind.", "Rentabilidad"]
+        valores = [total_fisico, (prom_tierra_zona * m2_sujeto + val_const_total), v_ind, v_av_ind, val_renta]
         
-        chart_data = pd.DataFrame({"Método": metodos, "Valor Q": valores})
-        st.bar_chart(chart_data.set_index("Método"))
-        
-        st.table(df_grafica.style.format("{:,.2f}"))
-
-st.info("💡 Este panel permite comparar si el valor físico está alineado con la historia financiera y la capacidad de generar ingresos de la propiedad.")
+        df_grafica = pd.DataFrame({"Método": metodos, "Valor Q": valores})
+        st.bar_chart(df_grafica.set_index("Método"))
+        st.table(df_grafica.set_index("Método").style.format("{:,.2f}"))
