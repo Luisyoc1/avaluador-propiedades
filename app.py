@@ -3,66 +3,67 @@ import pandas as pd
 from engine import ValuadorEngine
 from api import InmobiliariaAI
 
-st.set_page_config(page_title="Valuador IA Pro GT", layout="wide")
+st.set_page_config(page_title="Valuador Pro GT", layout="wide")
 engine = ValuadorEngine()
 
-# --- CONFIGURACIÓN DE APIS ---
-# Reemplaza con tu llave de Gemini (Google AI Studio)
-SERPER_KEY = "3b154c2742a1d46402531eb080ee2d12d5f167e4"
-GEMINI_KEY = "TU_GEMINI_API_KEY_AQUI" 
-
-api_ia = InmobiliariaAI(SERPER_KEY, GEMINI_KEY)
+S_KEY = "3b154c2742a1d46402531eb080ee2d12d5f167e4"
+G_KEY = "AIzaSyDiJ0t5ZOO8f1wODihSrd31lxR69yxnUSs"
+api_ia = InmobiliariaAI(S_KEY, G_KEY)
 
 def f_q(v): return f"Q {v:,.2f}"
 
-# Persistencia de datos
-if 'ofert_list' not in st.session_state:
-    st.session_state.ofert_list = [{"precio": 0, "m2_t": 0, "m2_c": 0, "link": "Manual"}] * 5
-if 'n_o' not in st.session_state: st.session_state.n_o = 3
+if 'lista_o' not in st.session_state:
+    st.session_state.lista_o = [{"precio": 0.0, "m2_t": 0.0, "m2_c": 0.0, "link": "Manual"}] * 5
 
-st.title("🏛️ Valuador Pro: Análisis de Lectura Profunda (IA)")
+st.title("🏛️ Valuador Inteligente: Filtro de Tipología y Datos")
 
-tab1, tab2, tab3 = st.tabs(["🔍 Mercado Inteligente", "🏠 Sujeto", "📈 Indicadores"])
+tab1, tab2 = st.tabs(["🔍 Mercado Filtrado", "🏠 Sujeto"])
 
 with tab1:
-    col_a, col_b = st.columns([3, 1])
-    with col_a:
-        sector = st.text_input("Sector a Investigar (Guatemala):", "Bosques de la Fontana")
-    with col_b:
-        if st.button("➕ Oferta") and st.session_state.n_o < 5:
-            st.session_state.n_o += 1
-            st.rerun()
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        sector = st.text_input("Ubicación:", "Bosques de San Nicolás")
+    with col2:
+        tipo = st.selectbox("¿Qué buscas?", ["Casa", "Apartamento"])
+    with col3:
+        n_busqueda = st.slider("Cantidad", 3, 5, 3)
 
-    if st.button("🚀 Iniciar Escaneo con Analista IA"):
-        with st.spinner("Gemini IA analizando descripciones de mercado..."):
-            resultados = api_ia.buscar_ofertas(sector, st.session_state.n_o)
-            for i, res in enumerate(resultados):
-                st.session_state.ofert_list[i] = res
-            st.success("Análisis profundo completado.")
+    if st.button("🚀 Escanear y Descartar ofertas irrelevantes"):
+        with st.spinner(f"Buscando solo {tipo}s con datos completos..."):
+            res_ia = api_ia.buscar_ofertas(sector, tipo, n_busqueda)
+            if res_ia:
+                # Limpiamos la lista anterior para que no se mezclen
+                st.session_state.lista_o = [{"precio": 0.0, "m2_t": 0.0, "m2_c": 0.0, "link": "Manual"}] * 5
+                for i, r in enumerate(res_ia):
+                    st.session_state.lista_o[i] = r
+                st.success(f"Se encontraron {len(res_ia)} ofertas válidas.")
+            else:
+                st.error("No se encontraron ofertas con datos suficientes en esta zona.")
 
-    # Renderizado de Ofertas
-    cols = st.columns(st.session_state.n_o)
+    cols = st.columns(n_busqueda)
     res_finales = []
     
-    for i in range(st.session_state.n_o):
+    for i in range(n_busqueda):
         with cols[i]:
+            item = st.session_state.lista_o[i]
             st.subheader(f"Oferta {i+1}")
-            item = st.session_state.ofert_list[i]
-            if item['link'] != "Manual": st.caption(f"[Ver Propiedad]({item['link']})")
+            if item['link'] != "Manual": st.caption(f"[Ver enlace]({item['link']})")
             
             p = st.number_input("Precio Q", key=f"p{i}", value=float(item['precio']))
             at = st.number_input("M2 Terreno", key=f"at{i}", value=float(item['m2_t']))
             ac = st.number_input("M2 Const.", key=f"ac{i}", value=float(item['m2_c']))
-            cc = st.number_input("Expertís M2", key=f"cc{i}", value=3600.0)
+            cc = st.number_input("Expertís", key=f"cc{i}", value=3600.0)
             
-            res = engine.calcular_residual_oferta(p, at, ac, cc)
-            res_finales.append(res)
-            st.info(f"Suelo: {f_q(res['m2_tierra_limpia'])}")
+            # Solo calculamos si hay datos
+            if p > 0 and at > 0:
+                res = engine.calcular_residual_oferta(p, at, ac, cc)
+                res_finales.append(res)
+                st.info(f"Suelo: {f_q(res['m2_tierra_limpia'])}")
+            else:
+                st.warning("Datos incompletos")
 
-    st.divider()
-    df = pd.DataFrame(res_finales)
-    df.index = [f"Oferta {i+1}" for i in range(len(res_finales))]
-    st.table(df.style.format("{:,.2f}"))
-    prom_suelo = df['m2_tierra_limpia'].mean()
-
-# --- LAS PESTAÑAS 2 Y 3 AHORA LEERÁN 'prom_suelo' SIN ERRORES ---
+    if res_finales:
+        st.divider()
+        df = pd.DataFrame(res_finales)
+        st.write("### Resumen de Comparativos Validados")
+        st.table(df.style.format("{:,.2f}"))
