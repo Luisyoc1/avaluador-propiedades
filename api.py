@@ -2,43 +2,50 @@ import requests
 import json
 import re
 
-class InmobiliariaAPI:
-    def __init__(self, api_key):
-        self.api_key = api_key
+class InmobiliariaAI:
+    def __init__(self, serper_key):
+        self.serper_key = serper_key
         self.url = "https://google.serper.dev/search"
 
-    def buscar_en_google(self, colonia):
-        query = f"venta casa {colonia} Guatemala terreno construcción metros precio"
-        payload = json.dumps({"q": query, "gl": "gt", "hl": "es"})
+    def buscar_en_guatemala(self, colonia, num_ofertas=3):
+        # Buscamos por palabras clave guatemaltecas: "Q", "Quetzales", "v2", "m2"
+        query = f'venta de casa en "{colonia}" Guatemala precio Q metros'
+        
+        payload = json.dumps({
+            "q": query,
+            "gl": "gt", # Prioriza resultados que Google sabe que son de interés para Guate
+            "hl": "es",
+            "num": num_ofertas
+        })
+        
         headers = {
-            'X-API-KEY': self.api_key,
+            'X-API-KEY': self.serper_key,
             'Content-Type': 'application/json'
         }
         
         try:
             response = requests.post(self.url, headers=headers, data=payload)
-            resultados = response.json()
+            resultados = response.json().get('organic', [])
             
             ofertas = []
-            # Extraemos los primeros 3 resultados orgánicos
-            for item in resultados.get('organic', [])[:3]:
-                texto = item.get('snippet', '') + " " + item.get('title', '')
+            for item in resultados[:num_ofertas]:
+                texto = (item.get('title', '') + " " + item.get('snippet', '')).replace(',', '')
                 
-                # Intento básico de extraer precio (busca 'Q' seguido de números)
-                precio_match = re.search(r'Q\s?([\d,]+)', texto)
-                precio = float(precio_match.group(1).replace(',', '')) if precio_match else 1500000.0
+                # Buscamos el precio que empiece con Q o números de 6-7 dígitos
+                precio_match = re.search(r'Q?\s?(\d{5,8})', texto)
+                precio = float(precio_match.group(1)) if precio_match else 1450000.0
                 
-                # Intento básico de extraer metros (busca números seguidos de 'm2' o 'v2')
-                metros_match = re.search(r'(\d+)\s?m2', texto)
-                metros = float(metros_match.group(1)) if metros_match else 150.0
+                # Buscamos metros o varas (si son varas, el engine debería convertirlo luego)
+                metros_match = re.search(r'(\d{2,4})\s?(m|v)', texto)
+                metros = float(metros_match.group(1)) if metros_match else 160.0
                 
                 ofertas.append({
-                    "titulo": item.get('title')[:30] + "...",
+                    "link": item.get('link'),
+                    "resumen_link": item.get('link')[:35] + "...",
                     "precio": precio,
                     "m2_t": metros,
-                    "m2_c": metros * 1.2, # Estimación si no lo encuentra
-                    "link": item.get('link')
+                    "m2_c": metros * 1.2
                 })
             return ofertas
-        except Exception as e:
+        except:
             return []
