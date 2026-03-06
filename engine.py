@@ -19,6 +19,10 @@ class ValuadorEngine:
         n = anio_a - anio_h
         return valor_h * (math.pow(1 + self.tasa, n))
 
+    def calcular_rentabilidad(self, monto_mensual, tasa_cap=0.06):
+        # (Renta mensual * 12 meses) / 0.06
+        return (monto_mensual * 12) / tasa_cap
+
     def valor_fisico_sujeto(self, m2_t, v_t_banco, lista_areas):
         v_tierra = m2_t * v_t_banco
         v_edificios = sum(a['m2'] * a['costo'] for a in lista_areas)
